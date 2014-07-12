@@ -19,12 +19,11 @@ import compiler, requests, re
 
 LIPSUM_PARAGRAPH = re.compile(r'^lipsum\.paragraph(?:\((\d+)\))?$')
 LIPSUM_WORDS = re.compile(r'^lipsum\.words(?:\((\d+)\))?$')
-PACKAGE = __name__.split('.')[0]
 
 class Command(BaseCommand):
     help = u'Generate a site\'s data from a YAML file'
     generators = {
-        'auth.user': '%s.gensite.generators.auth.user' % PACKAGE
+        'auth.user': 'bambu_gensite.generators.auth.user'
     }
 
     def __init__(self, *args, **kwargs):
@@ -345,7 +344,7 @@ class Command(BaseCommand):
     @transaction.commit_on_success()
     def handle(self, filename, **options):
         add_to_builtins(
-            '%s.gensite.templatetags' % PACKAGE
+            'bambu_gensite.templatetags'
         )
 
         yaml = safe_load(
