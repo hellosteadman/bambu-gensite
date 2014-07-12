@@ -421,13 +421,25 @@ class Command(BaseCommand):
                 )
 
                 for pf in kwargs.get('print', []):
-                    self._log(
-                        '%s: *%s*' % (
-                            pf,
-                            self.render(fields[pf], context)
-                        ),
-                        1
-                    )
+                    try:
+                        self._log(
+                            '%s: *%s*' % (
+                                pf,
+                                self.render(fields[pf], context)
+                            ),
+                            1
+                        )
+                    except KeyError:
+                        self._log(
+                            '%s: *%s*' % (
+                                pf,
+                                self.render(
+                                    getattr(obj, pf),
+                                    context
+                                )
+                            ),
+                            1
+                        )
 
                 if foreach:
                     self._indent += 1
@@ -451,7 +463,7 @@ class Command(BaseCommand):
                 domain = s.get('domain', 'example.com'),
                 name = s.get('name', s.get('domain', 'example.com'))
             )
-            
+
             for source in s.get('sources', []):
                 alt = False
                 if source.get('json'):
