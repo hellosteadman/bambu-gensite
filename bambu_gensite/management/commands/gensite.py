@@ -86,14 +86,30 @@ class Command(BaseCommand):
         except:
             pass
 
-    def query(self, model, count = None, **kwargs):
-        q = model.objects.all()
+    def query(self, model, count = None, context = None, **kwargs):
+        if not context:
+            context = {}
 
+        q = model.objects.all()
         if 'where' in kwargs:
-            q = q.filter(**kwargs['where'])
+            q = q.filter(
+                **dict(
+                    (
+                        k,
+                        self.render(v, context)
+                    ) for (k, v) in kwargs['where'].items()
+                )
+            )
 
         if 'exclude' in kwargs:
-            q = q.filter(**kwargs['exclude'])
+            q = q.exclude(
+                **dict(
+                    (
+                        k,
+                        self.render(v, context)
+                    ) for (k, v) in kwargs['exclude'].items()
+                )
+            )
 
         if 'from' in kwargs:
             if count:
@@ -116,6 +132,15 @@ class Command(BaseCommand):
 
         return q
 
+    def render(self, value, context):
+        return Template(
+            value
+        ).render(
+            Context(
+                context
+            )
+        )
+
     def make_generator(self, model, data, context):
         fields = {}
         m2ms = defaultdict(list)
@@ -124,13 +149,7 @@ class Command(BaseCommand):
             for key, value in data.items():
                 if isinstance(value, (str, unicode)):
                     if '{{' in value:
-                        v = Template(
-                            value
-                        ).render(
-                            Context(
-                                context
-                            )
-                        )
+                        v = self.render(value, context)
                     else:
                         v = value
 
@@ -174,7 +193,9 @@ class Command(BaseCommand):
                                 self._indent -= 1
                             elif 'from' in value or 'at' in value:
                                 m2ms[key] = self.query(
-                                    o, **value
+                                    o,
+                                    context = context,
+                                    **value
                                 )
                             else:
                                 raise CommandError(
@@ -204,7 +225,10 @@ class Command(BaseCommand):
                             elif 'at' in value or 'where' in value or 'exclude' in value:
                                 try:
                                     v = self.query(
-                                        o, count = 1, **value
+                                        o,
+                                        count = 1,
+                                        context = context,
+                                        **value
                                     )[0]
                                 except IndexError:
                                     raise CommandError(
@@ -256,6 +280,11 @@ class Command(BaseCommand):
         def g(model, count, log, **kwargs):
             for x in range(0, count):
                 obj = model(**fields)
+
+                if 'password' in fields:
+                    obj.set_password(
+                        fields.pop('password')
+                    )
 
                 try:
                     obj.full_clean()
@@ -339,7 +368,11 @@ class Command(BaseCommand):
             raise CommandError('Cannot find model %s' % model)
 
         self._log('Generating data from *%s*' % unicode(model._meta.verbose_name_plural))
-        return self.query(model, count, **kwargs)
+        return self.query(
+            model,
+            count,
+            **kwargs
+        )
 
     @transaction.commit_on_success()
     def handle(self, filename, **options):
@@ -352,6 +385,9 @@ class Command(BaseCommand):
         )
 
         def gen(model, count = 1, foreach = None, context = None, fields = None, **kwargs):
+            if not context:
+                context = {}
+
             iif = kwargs.get('if', '')
             if iif:
                 expr = compiler.compile(iif, '<string>', 'eval')
@@ -369,7 +405,7 @@ class Command(BaseCommand):
             except:
                 raise CommandError('Cannot find model %s' % model)
 
-            g = self.get_generator(mnl)
+            g = not fields and self.get_generator(mnl) or None
             if not g:
                 g = self.make_generator(o, fields, context)
 
@@ -383,6 +419,15 @@ class Command(BaseCommand):
                         unicode(obj)
                     )
                 )
+
+                for pf in kwargs.get('print', []):
+                    self._log(
+                        '%s: *%s*' % (
+                            pf,
+                            self.render(fields[pf], context)
+                        ),
+                        1
+                    )
 
                 if foreach:
                     self._indent += 1
@@ -406,15 +451,7 @@ class Command(BaseCommand):
                 domain = s.get('domain', 'example.com'),
                 name = s.get('name', s.get('domain', 'example.com'))
             )
-
-            for m in s.get('create', []):
-                gen(
-                    context = {
-                        'alt': False
-                    },
-                    **m
-                )
-
+            
             for source in s.get('sources', []):
                 alt = False
                 if source.get('json'):
@@ -445,3 +482,6 @@ class Command(BaseCommand):
 
                     alt = not alt
                     self._indent -= 1
+
+            for m in s.get('create', []):
+                gen(**m)
