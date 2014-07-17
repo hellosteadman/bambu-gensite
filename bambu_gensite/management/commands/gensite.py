@@ -191,7 +191,7 @@ class Command(BaseCommand):
                                     m2ms[key].append(ag)
 
                                 self._indent -= 1
-                            elif 'from' in value or 'at' in value:
+                            elif 'from' in value or 'at' in value or 'where' in value or 'exclude' in value:
                                 m2ms[key] = self.query(
                                     o,
                                     context = context,
@@ -458,12 +458,24 @@ class Command(BaseCommand):
                         alt = not alt
                     self._indent -= 1
 
+        site_id = 1
         for s in yaml:
-            site = Site.objects.create(
-                domain = s.get('domain', 'example.com'),
-                name = s.get('name', s.get('domain', 'example.com'))
-            )
+            if Site.objects.filter(pk = site_id).exists():
+                Site.objects.filter(
+                    pk = site_id
+                ).update(
+                    domain = s.get('domain', 'example.com'),
+                    name = s.get('name', s.get('domain', 'example.com'))
+                )
 
+                site = Site.objects.get(pk = 1)
+            else:
+                site = Site.objects.create(
+                    domain = s.get('domain', 'example.com'),
+                    name = s.get('name', s.get('domain', 'example.com'))
+                )
+
+            site_id += 1
             for source in s.get('sources', []):
                 alt = False
                 if source.get('json'):

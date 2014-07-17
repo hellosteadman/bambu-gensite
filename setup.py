@@ -4,7 +4,7 @@ from os import path
 
 setup(
     name = 'bambu-gensite',
-    version = '1.0',
+    version = '1.1',
     description = 'Fill a website with data generated from a YAML file',
     author = 'Steadman',
     author_email = 'mark@steadman.io',
